@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Kigali Population Heatmap 2022</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<style>
+#map { height: 100vh; }
+.legend {
+  background: white;
+  padding: 10px;
+  line-height: 24px;
+  font-size: 14px;
+}
+.legend i {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  margin-right: 8px;
+  opacity: 0.8;
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<script>
+
+var map = L.map('map').setView([-1.9441, 30.0619], 12);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
+
+// Area in km2 for all 35 sectors
+var sectorAreas = {
+  "Gitega": 2.8, "Kanyinya": 6.1, "Kigali": 2.4, "Kimisagara": 3.2,
+  "Mageragere": 18.6, "Muhima": 1.9, "Nyakabanda": 2.1, "Nyamirambo": 4.8,
+  "Nyarugenge": 1.6, "Rwezamenyo": 2.9, "Bumbogo": 30.5, "Gatsata": 5.2,
+  "Gikomero": 48.2, "Gisozi": 6.4, "Jabana": 36.8, "Jali": 22.1,
+  "Kacyiru": 4.8, "Kimihurura": 5.2, "Kimironko": 6.9, "Kinyinya": 15.4,
+  "Ndera": 43.2, "Nduba": 52.3, "Remera": 5.1, "Rusororo": 31.6,
+  "Rutunga": 24.7, "Gahanga": 21.5, "Gatenga": 4.2, "Gikondo": 3.8,
+  "Kagarama": 3.6, "Kanombe": 11.2, "Kicukiro": 3.2, "Kigarama": 12.4,
+  "Masaka": 14.8, "Niboye": 3.9, "Nyarugunga": 4.4
+};
+
+// Data directly embedded - coordinates in EPSG:4326 (WGS84)
+var sectors = [
+  {lat:-1.9541, lng:30.0619, sector:"Gitega",     district:"Nyarugenge", pop:26668},
+  {lat:-1.9130, lng:30.0130, sector:"Kanyinya",   district:"Nyarugenge", pop:31026},
+  {lat:-1.9730, lng:30.0380, sector:"Kigali",     district:"Nyarugenge", pop:61499},
+  {lat:-1.9510, lng:30.0550, sector:"Kimisagara", district:"Nyarugenge", pop:56534},
+  {lat:-2.0230, lng:30.0450, sector:"Mageragere", district:"Nyarugenge", pop:59747},
+  {lat:-1.9370, lng:30.0660, sector:"Muhima",     district:"Nyarugenge", pop:22531},
+  {lat:-1.9640, lng:30.0540, sector:"Nyakabanda", district:"Nyarugenge", pop:29580},
+  {lat:-1.9880, lng:30.0520, sector:"Nyamirambo", district:"Nyarugenge", pop:55315},
+  {lat:-1.9543, lng:30.0700, sector:"Nyarugenge", district:"Nyarugenge", pop:16665},
+  {lat:-1.9660, lng:30.0620, sector:"Rwezamenyo", district:"Nyarugenge", pop:14754},
+  {lat:-1.8780, lng:30.1570, sector:"Bumbogo",    district:"Gasabo",     pop:112899},
+  {lat:-1.9170, lng:30.0530, sector:"Gatsata",    district:"Gasabo",     pop:46262},
+  {lat:-1.8640, lng:30.2320, sector:"Gikomero",   district:"Gasabo",     pop:19630},
+  {lat:-1.9160, lng:30.0670, sector:"Gisozi",     district:"Gasabo",     pop:75611},
+  {lat:-1.8530, lng:30.0700, sector:"Jabana",     district:"Gasabo",     pop:63862},
+  {lat:-1.8710, lng:30.0180, sector:"Jali",       district:"Gasabo",     pop:41156},
+  {lat:-1.9370, lng:30.0870, sector:"Kacyiru",    district:"Gasabo",     pop:30036},
+  {lat:-1.9540, lng:30.0940, sector:"Kimihurura", district:"Gasabo",     pop:16425},
+  {lat:-1.9370, lng:30.1340, sector:"Kimironko",  district:"Gasabo",     pop:61733},
+  {lat:-1.9080, lng:30.1040, sector:"Kinyinya",   district:"Gasabo",     pop:125400},
+  {lat:-1.9510, lng:30.1840, sector:"Ndera",      district:"Gasabo",     pop:95164},
+  {lat:-1.8390, lng:30.1230, sector:"Nduba",      district:"Gasabo",     pop:68424},
+  {lat:-1.9450, lng:30.1170, sector:"Remera",     district:"Gasabo",     pop:38648},
+  {lat:-1.9200, lng:30.2550, sector:"Rusororo",   district:"Gasabo",     pop:61787},
+  {lat:-1.8130, lng:30.1740, sector:"Rutunga",    district:"Gasabo",     pop:22468},
+  {lat:-2.0230, lng:30.1200, sector:"Gahanga",    district:"Kicukiro",   pop:79082},
+  {lat:-1.9840, lng:30.0920, sector:"Gatenga",    district:"Kicukiro",   pop:67084},
+  {lat:-1.9640, lng:30.0930, sector:"Gikondo",    district:"Kicukiro",   pop:19803},
+  {lat:-1.9840, lng:30.1240, sector:"Kagarama",   district:"Kicukiro",   pop:21277},
+  {lat:-1.9840, lng:30.1590, sector:"Kanombe",    district:"Kicukiro",   pop:72346},
+  {lat:-1.9650, lng:30.0990, sector:"Kicukiro",   district:"Kicukiro",   pop:14039},
+  {lat:-1.9990, lng:30.0700, sector:"Kigarama",   district:"Kicukiro",   pop:63153},
+  {lat:-2.0200, lng:30.2050, sector:"Masaka",     district:"Kicukiro",   pop:78788},
+  {lat:-1.9690, lng:30.1240, sector:"Niboye",     district:"Kicukiro",   pop:26912},
+  {lat:-1.9670, lng:30.1580, sector:"Nyarugunga", district:"Kicukiro",   pop:49247}
+];
+
+// Build heatmap data using intensity = population / area
+var heatData = sectors.map(function(s) {
+  var area = sectorAreas[s.sector] || 1;
+  var intensity = s.pop / area;
+  return [s.lat, s.lng, intensity];
+});
+
+// Create heatmap layer
+L.heatLayer(heatData, {
+  radius: 45,
+  blur: 30,
+  maxZoom: 16
+}).addTo(map);
+
+// Add circle markers with popups
+sectors.forEach(function(s) {
+  var area = sectorAreas[s.sector] || 1;
+  var density = (s.pop / area).toFixed(0);
+  L.circleMarker([s.lat, s.lng], {
+    radius: 5,
+    fillColor: "white",
+    color: "black",
+    weight: 1,
+    fillOpacity: 0.8
+  }).bindPopup(
+    "<b>Sector:</b> " + s.sector +
+    "<br><b>District:</b> " + s.district +
+    "<br><b>Population:</b> " + s.pop.toLocaleString() +
+    "<br><b>Area:</b> " + area + " km²" +
+    "<br><b>Density:</b> " + density + " people/km²"
+  ).addTo(map);
+});
+
+// Legend
+var legend = L.control({ position: 'bottomright' });
+legend.onAdd = function() {
+  var div = L.DomUtil.create('div', 'legend');
+  div.innerHTML =
+    '<b>Population Density</b><br>' +
+    '<i style="background:red"></i> Very High<br>' +
+    '<i style="background:yellow"></i> High<br>' +
+    '<i style="background:lime"></i> Medium<br>' +
+    '<i style="background:cyan"></i> Low<br>' +
+    '<i style="background:blue"></i> Very Low<br><br>' +
+    '<b>Formula:</b><br>population / area (km²)';
+  return div;
+};
+legend.addTo(map);
+
+</script>
+</body>
+</html>
