@@ -12,7 +12,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
 
   <style>
-    /* ── Reset & base ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -95,6 +94,76 @@
       display: flex; align-items: center; justify-content: center;
       z-index: 9999;
     }
+
+    /* ── Popup styles ── */
+    .leaflet-popup-content-wrapper {
+      background: #181c27 !important;
+      border: 1px solid #2a2f42 !important;
+      border-radius: 8px !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.7) !important;
+      color: #e8eaf0 !important;
+      font-family: 'DM Sans', sans-serif !important;
+      padding: 0 !important;
+    }
+    .leaflet-popup-tip {
+      background: #181c27 !important;
+    }
+    .leaflet-popup-close-button {
+      color: #7b82a0 !important;
+      font-size: 18px !important;
+      top: 8px !important;
+      right: 10px !important;
+    }
+    .leaflet-popup-close-button:hover {
+      color: #4fc3f7 !important;
+    }
+
+    .popup-box {
+      min-width: 200px;
+      padding: 14px 16px;
+    }
+    .popup-header {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #4fc3f7;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #2a2f42;
+    }
+    .popup-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px solid #1e2235;
+      gap: 12px;
+    }
+    .popup-row:last-child {
+      border-bottom: none;
+    }
+    .popup-key {
+      font-size: 11px;
+      color: #7b82a0;
+      white-space: nowrap;
+    }
+    .popup-val {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: #e8eaf0;
+      text-align: right;
+      word-break: break-all;
+    }
+    .lu-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
   </style>
 </head>
 
@@ -131,11 +200,11 @@
     </div>
 
     <div id="filter-bar">
-      <button onclick="showAll()">All</button>
-      <button onclick="filterByLU('Residential')">Residential</button>
-      <button onclick="filterByLU('Agriculture')">Agriculture</button>
-      <button onclick="filterByLU('Commercial')">Commercial</button>
-      <button onclick="filterByLU('Open Space')">Open</button>
+      <button class="filter-btn" onclick="showAll()">All</button>
+      <button class="filter-btn" onclick="filterByLU('Residential')">Residential</button>
+      <button class="filter-btn" onclick="filterByLU('Agriculture')">Agriculture</button>
+      <button class="filter-btn" onclick="filterByLU('Commercial')">Commercial</button>
+      <button class="filter-btn" onclick="filterByLU('Open Space')">Open Space</button>
     </div>
   </div>
 </div>
@@ -149,19 +218,20 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 20
 }).addTo(map);
 
+/* ── Colour function ── */
 function getLandUseColor(lu) {
   switch ((lu || '').trim()) {
     case 'Residential': return '#c0714b';
-    case 'Agriculture': return '#5a9e5a';
-    case 'Commercial': return '#d94f4f';
-    case 'Open Space': return '#7b9ec0';
-    default: return '#888';
+    case 'Agriculture':  return '#5a9e5a';
+    case 'Commercial':  return '#d94f4f';
+    case 'Open Space':  return '#7b9ec0';
+    default:            return '#888';
   }
 }
 
 let geojsonLayer;
-let activeFilter = null;
 
+/* ── Default style ── */
 function style(feature) {
   return {
     fillColor: getLandUseColor(feature.properties.Land_Use),
@@ -171,41 +241,148 @@ function style(feature) {
   };
 }
 
+/* ── Highlight style on hover ── */
+function highlightStyle(feature) {
+  return {
+    fillColor: getLandUseColor(feature.properties.Land_Use),
+    fillOpacity: 0.9,
+    color: '#4fc3f7',
+    weight: 2
+  };
+}
+
+/* ── Format area helper ── */
+function formatArea(sqm) {
+  if (!sqm || isNaN(sqm)) return 'N/A';
+  if (sqm >= 10000) return (sqm / 10000).toFixed(3) + ' ha';
+  return parseFloat(sqm).toFixed(1) + ' m²';
+}
+
+/* ── Land use pill HTML ── */
+function luPill(lu) {
+  const colors = {
+    'Residential': '#c0714b',
+    'Agriculture':  '#5a9e5a',
+    'Commercial':  '#d94f4f',
+    'Open Space':  '#7b9ec0'
+  };
+  const c = colors[lu] || '#888';
+  return `<span class="lu-pill" style="background:${c}22;color:${c};border:1px solid ${c}66">${lu || 'Unknown'}</span>`;
+}
+
+/* ── Build GeoJSON layer ── */
 function build(data) {
   geojsonLayer = L.geoJSON(data, {
-    style: style
+    style: style,
+
+    /* ── onEachFeature: click popup + hover highlight ── */
+    onEachFeature: function(feature, layer) {
+      const p = feature.properties;
+
+      const upi      = p.upi  || p.UPI  || 'N/A';
+      const area     = p.Shape_Area || p.st_area_sh || null;
+      const lu       = (p.Land_Use  || 'Unknown').trim();
+      const sector   = p.sector  || '–';
+      const cell     = p.cell    || '–';
+      const village  = p.village || '–';
+      const parcelNo = p.parcel_num || '–';
+
+      /* Popup HTML */
+      const popupHTML = `
+        <div class="popup-box">
+          <div class="popup-header">Parcel Information</div>
+
+          <div class="popup-row">
+            <span class="popup-key">UPI</span>
+            <span class="popup-val">${upi}</span>
+          </div>
+
+          <div class="popup-row">
+            <span class="popup-key">Area</span>
+            <span class="popup-val">${formatArea(area)}</span>
+          </div>
+
+          <div class="popup-row">
+            <span class="popup-key">Land Use</span>
+            <span class="popup-val">${luPill(lu)}</span>
+          </div>
+
+          <div class="popup-row">
+            <span class="popup-key">Parcel No.</span>
+            <span class="popup-val">${parcelNo}</span>
+          </div>
+
+          <div class="popup-row">
+            <span class="popup-key">Village</span>
+            <span class="popup-val">${village}</span>
+          </div>
+
+          <div class="popup-row">
+            <span class="popup-key">Cell</span>
+            <span class="popup-val">${cell}</span>
+          </div>
+
+          <div class="popup-row">
+            <span class="popup-key">Sector</span>
+            <span class="popup-val">${sector}</span>
+          </div>
+        </div>`;
+
+      /* Bind popup to layer */
+      layer.bindPopup(popupHTML, { maxWidth: 300 });
+
+      /* Hover: highlight parcel on mouseover, reset on mouseout */
+      layer.on({
+        mouseover: function(e) {
+          e.target.setStyle(highlightStyle(feature));
+          e.target.bringToFront();
+        },
+        mouseout: function(e) {
+          /* Only reset if popup is not open */
+          if (!e.target.isPopupOpen()) {
+            geojsonLayer.resetStyle(e.target);
+          }
+        },
+        /* Click: open popup (Leaflet does this automatically via bindPopup,
+           but we also restore default style when popup closes) */
+        popupclose: function(e) {
+          geojsonLayer.resetStyle(e.target);
+        }
+      });
+    }
+
   }).addTo(map);
 
   map.fitBounds(geojsonLayer.getBounds());
   document.getElementById('loading').style.display = 'none';
 }
 
+/* ── Filter functions ── */
 function filterByLU(lu) {
-  activeFilter = lu;
-
   geojsonLayer.eachLayer(layer => {
     const v = layer.feature.properties.Land_Use;
     layer.setStyle({
       fillColor: getLandUseColor(v),
-      fillOpacity: v === lu ? 0.9 : 0.1
+      fillOpacity: v === lu ? 0.9 : 0.1,
+      color: '#111',
+      weight: 0.5
     });
   });
 }
 
 function showAll() {
-  activeFilter = null;
-  geojsonLayer.resetStyle();
+  geojsonLayer.eachLayer(layer => geojsonLayer.resetStyle(layer));
 }
 
-/* ✅ ONLY FIXED LINE BELOW */
+/* ── Load GeoJSON ── */
 fetch('./Kabuhunde_Simp_FeaturesToJSO.geojson')
   .then(r => r.json())
   .then(build)
   .catch(err => {
     console.error(err);
-    document.getElementById('loading').innerHTML = "Failed to load GeoJSON";
+    document.getElementById('loading').innerHTML =
+      '<p style="color:#d94f4f;font-family:monospace">Failed to load GeoJSON. Make sure the .geojson file is in the same folder.</p>';
   });
-
 </script>
 </body>
 </html>
